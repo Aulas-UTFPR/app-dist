@@ -7,6 +7,6 @@ Arquivos:
 
 ```
 |--- src/threads/                                Código para as aulas de threads.
-        |--- exemplos                            Exemplos de aplicações de Threads.
+        |--- exemplos                            Exemplos de como as aplicações da aula executariam sem Threads.
         |--- aula                                Códigos ensinados em sala de aula.
 ```
