@@ -1,5 +1,4 @@
 package threads.exemplos;
-
 public class Print {
 	
 	void a(int end) {
