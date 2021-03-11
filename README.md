@@ -9,5 +9,5 @@ Arquivos:
 |--- src/threads/               Código para as aulas de threads.
         |--- exemplos           Exemplos de como as aplicações da aula executariam sem Threads.
         |--- aula               Códigos ensinados em sala de aula.
-|--- src/remote/                Código para as aulas de chamada de procedimentos remotos.
+|--- src/remoto/                Código para as aulas de chamada de procedimentos remotos.
 ```
