@@ -21,7 +21,7 @@ public class Cliente extends UnicastRemoteObject {
 	public static void main(String[] args) {
 		try {
 			AppRemoto appR= (AppRemoto) Naming.lookup("AppRemoto");
-			appR.mensagem("Fala, magrão!");
+			appR.mensagem("Oi!");
 		} catch (MalformedURLException | RemoteException | NotBoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
