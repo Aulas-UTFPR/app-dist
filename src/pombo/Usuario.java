@@ -6,7 +6,7 @@ public class Usuario extends Thread {
 	static int id = 0;
 	int idUsuario = 0;
 	
-	public Usuario(Mochila m) {
+	public Usuario(Mochila m, Pombo b) {
 		this.mochila = m;
 		id++;
 		this.idUsuario = id;
@@ -15,6 +15,13 @@ public class Usuario extends Thread {
 	public void run() {
 		while (mochila.executando) {
 			mochila.escrever(idUsuario);
+			try {
+				Integer t = (int) Math.random() * 500 + 1000;
+				Thread.sleep(t);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 
