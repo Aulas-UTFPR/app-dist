@@ -9,14 +9,10 @@ public class Pombo extends Thread {
 	}
 	
 	public void run() {
+		System.out.println("Executando pombo...");
 		while (mochila.executando) {
+				System.out.println("Pombo esperando...");
 				mochila.esvaziar();
-				try {
-					Thread.sleep((int) Math.random() * 2000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
 		}
 	}
 }

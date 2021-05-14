@@ -5,9 +5,9 @@ public class Executor {
 	public static void main(String args[]) {
 	
 		Mochila mochila = new Mochila();
-		Pombo pombo = new Pombo(mochila);
-		Usuario usuario1 = new Usuario(mochila, pombo);
-		Usuario usuario2 = new Usuario(mochila, pombo);
+		Thread pombo = new Pombo(mochila);
+		Thread usuario1 = new Usuario(mochila);
+		Thread usuario2 = new Usuario(mochila);
 		
 		pombo.start();
 		usuario1.start();
