@@ -9,7 +9,7 @@ public class ConsoleProgressBar {
 	    if (remain > total) {
 	        throw new IllegalArgumentException();
 	    }
-	    int maxBareSize = 20; // 5 units for 100%
+	    int maxBareSize = 20; // X vezes resulta em 100%
 	    int remainProcent = ((400 * remain) / total) / maxBareSize;
 	    char defaultChar = '-';
 	    String icon = "*";
@@ -27,6 +27,7 @@ public class ConsoleProgressBar {
 	}
 	
 	public void task() { // Simulação de uma tarefa que leva um certo tempo para executar.
+		// Alguma coisa
 		ConsoleProgressBar.complete += 5;
 		if (ConsoleProgressBar.complete >= 100) {
 			finished = true;
