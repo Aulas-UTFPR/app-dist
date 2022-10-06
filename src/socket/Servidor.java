@@ -33,7 +33,7 @@ public class Servidor {
     }
 
     public void removeLogado(String usuario) {
-
+        usuariosLogados.remove(usuario);
     }
 
     public boolean getBloqueada() {
@@ -49,7 +49,7 @@ public class Servidor {
         while (true) {
             i++;
             System.out.println("Nova thread " + i);
-            bloquearDesbloquear();
+            bloquearDesbloquear(); // TRUE
             Thread cliente = new Thread() {
                 String nome = "";
 
@@ -59,55 +59,62 @@ public class Servidor {
                         Socket clientSocket = getServer().accept();
                         System.out.println("Conexao aberta!");
                         // addSocket(clientSocket);
-                        clientSocket.getOutputStream().write("Digite nome::NOME para logar\n".getBytes());
-                        bloquearDesbloquear(); // desbloquear
+                        OutputStream saida = clientSocket.getOutputStream();
+                        saida.write("Digite nome::NOME para logar\n".getBytes());
+                        bloquearDesbloquear(); // FALSE
                         try {
                             Thread.sleep(500);
                         } catch (InterruptedException e) {
-                            // TODO Auto-generated catch block
                             e.printStackTrace();
                         }
                         InputStreamReader inStreamReader = new InputStreamReader(clientSocket.getInputStream()); // entrada
                         BufferedReader entrada = new BufferedReader(inStreamReader);
-                        OutputStream saida = clientSocket.getOutputStream();// canal de saida
+                        // OutputStream saida = clientSocket.getOutputStream();// canal de saida
                         boolean fechar = false;
                         while (!fechar) {
-                            String recebido = entrada.readLine();
-                            // System.out.println(recebido);
-                            String comando[] = recebido.split("::");
-                            if (comando.length < 2) {
-                                System.out.println("Formato da mensagem incorreto!");
-                            } else {
-                                switch (comando[0]) {
-                                    case "nome":
-                                        nome = comando[1];
-                                        ID = nome + clientSocket.toString();
-                                        System.out.println("Usuario logado: " + nome);
-                                        addLogado(ID, clientSocket);
-                                        saida.write("Logado com sucesso!\n".getBytes());
-                                        break;
-                                    case "escrever":
-                                        String msg = nome + " escreveu: " + comando[1] + "\n";
-                                        for (Entry<String, Socket> es : getLogados().entrySet()) {
-                                            if (!es.getValue().isClosed()) {
-                                                es.getValue().getOutputStream().write(msg.getBytes());
+                            try {
+                                String recebido = entrada.readLine();
+                                // System.out.println(recebido);
+                                String comando[] = recebido.split("::");
+                                if (comando.length < 2) {
+                                    System.out.println("Formato da mensagem incorreto!");
+                                } else {
+                                    switch (comando[0]) {
+                                        case "nome":
+                                            nome = comando[1];
+                                            ID = nome + clientSocket.toString();
+                                            System.out.println("Usuario logado: " + nome);
+                                            addLogado(ID, clientSocket);
+                                            saida.write("Logado com sucesso!\n".getBytes());
+                                            break;
+                                        case "escrever":
+                                            String msg = nome + " escreveu: " + comando[1] + "\n";
+                                            for (Entry<String, Socket> es : getLogados().entrySet()) {
+                                                if (!es.getValue().isClosed()) {
+                                                    es.getValue().getOutputStream().write(msg.getBytes());
+                                                }
                                             }
-                                        }
-                                        break;
-                                    case "fechar":
-                                        System.out.println("Fechando o socket de " + nome);
-                                        String saiuMsg = nome + " saiu!\n";
-                                        removeLogado(ID);
-                                        for (Entry<String, Socket> es : getLogados().entrySet()) {
-                                            if (!es.getValue().isClosed()) {
-                                                es.getValue().getOutputStream().write(saiuMsg.getBytes());
+                                            break;
+                                        case "grupo":
+                                            // Enviar mensagem para grupo
+                                            break;
+                                        case "fechar":
+                                            System.out.println("Fechando o socket de " + nome);
+                                            String saiuMsg = nome + " saiu!\n";
+                                            removeLogado(ID);
+                                            for (Entry<String, Socket> es : getLogados().entrySet()) {
+                                                if (!es.getValue().isClosed()) {
+                                                    es.getValue().getOutputStream().write(saiuMsg.getBytes());
+                                                }
                                             }
-                                        }
-                                        fechar = true;
-                                        break;
-                                    default:
-                                        System.out.print("Comando incorreto!");
+                                            fechar = true;
+                                            break;
+                                        default:
+                                            System.out.print("Comando incorreto!");
+                                    }
                                 }
+                            } catch (NullPointerException npe) {
+                                npe.printStackTrace();
                             }
                         }
                         clientSocket.close();
