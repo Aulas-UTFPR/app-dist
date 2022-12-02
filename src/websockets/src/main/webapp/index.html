@@ -1,0 +1,124 @@
+<html>
+    <head>
+        <title>Chat WebSocket</title>
+        
+        <script src="js/sockjs-0.3.4.js"></script>
+        <script src="js/stomp.js"></script>
+        
+        <script type="text/javascript">
+            var stompClient = null;
+
+            var login = document.getElementById("from");
+
+            login.addEventListener("keypress", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    document.getElementById("connect").click();
+                }
+            });
+
+            var input = document.getElementById("txt");
+
+            input.addEventListener("keypress", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    document.getElementById("sendMessage").click();
+                }
+            });
+            
+            function selecionarUsuario() {
+            	document.getElementById("from").select();
+            }
+            
+            function selecionarTexto(){
+            	document.getElementById("text").select();
+            }
+            
+            function setConnected(connected) {
+                document.getElementById('connect').disabled = connected;
+                document.getElementById('disconnect').disabled = !connected;
+                document.getElementById('from').disabled = connected;
+                document.getElementById('conversationDiv').style.visibility 
+                  = connected ? 'visible' : 'hidden';
+                document.getElementById('msg').innerHTML = '';
+            }
+            
+            function msgConnected(msg) {
+            	if (stompClient != null) {
+			var from = document.getElementById('from').value;
+			stompClient.send("/app/msg", {},
+			    JSON.stringify({'from':from, 'text':msg})
+			);
+                }
+            }
+            
+            function connect() {
+                var socket = new SockJS('/chat');
+                stompClient = Stomp.over(socket);  
+                stompClient.connect({}, function(frame) {
+                    setConnected(true);
+                    msgConnected("conectou...");
+                    console.log('Connected: ' + frame);
+                    stompClient.subscribe('/topic/mensagem', function(messageOutput) {
+                        showMessageOutput(JSON.parse(messageOutput.body));
+                    });
+                });
+                document.getElementById("text").focus();
+            }
+            
+            function disconnect() {
+                msgConnected("desconectou...");
+                if(stompClient != null) {
+                    stompClient.disconnect();
+                }
+                setConnected(false);
+                console.log("Disconnected");  
+                document.getElementById("from").focus();
+            }
+            
+            function sendMessage() {
+                var from = document.getElementById('from').value;
+                var text = document.getElementById('text').value;
+                stompClient.send("/app/msg", {}, 
+                  JSON.stringify({'from':from, 'text':text}));
+                document.getElementById('text').value = "";
+                document.getElementById('text').focus();
+            }
+            
+            function showMessageOutput(messageOutput) {
+                var response = document.getElementById('response');
+                var p = document.createElement('p');
+                p.style.wordWrap = 'break-word';
+                log = document.getElementById("msg");
+                log.innerHTML += messageOutput.from + " : " + messageOutput.text + " - " + messageOutput.time + "\n";
+            }
+        </script>
+    </head>
+    <body onload="disconnect()">
+        <div>
+            <div class="divUsuario" style="float: left; width: 300px;">
+                <div>
+                    <input type="text" id="from" onclick="selecionarUsuario();" placeholder="Nickname"/>
+                </div>
+                <br />
+                <div>
+                    <button id="connect" onclick="connect();">Conectar</button>
+                    <button id="disconnect" disabled="disabled" onclick="disconnect();">
+                        Desconectar
+                    </button>
+                </div>
+                <br />
+                <div id="conversationDiv" style="visibility:hidden">
+                    <input type="text" id="text" onclick="selecionarTexto();" placeholder="Mensagem..."/>
+                    <button id="sendMessage" onclick="sendMessage();">Enviar</button>
+                    <p id="response"></p>
+                    <br>
+                    <br>
+                </div>
+            </div>
+            <div class="conversationDiv2" style="float: left;">
+                <textarea id="msg" readonly="true" rows="10" cols="50"/></textarea>   
+            </div>
+        </div>
+    </body>
+</html>
