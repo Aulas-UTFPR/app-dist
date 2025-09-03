@@ -1,15 +1,5 @@
-# Aplicações Distribuídas
+# SDU601
 
-Código da disciplina Aplicações Distribuídas - Professor Michel Albonico.
-
-
-Arquivos:
-
-```
-|--- src/threads/               Código para as aulas de threads.
-        |--- exemplos           Exemplos de como as aplicações da aula executariam sem Threads.
-        |--- aula               Códigos ensinados em sala de aula.
-|--- src/remoto/                Código para as aulas de chamada de procedimentos remotos.
-|--- src/...
-|--- webchat/                   Código para um Webchat com Spring
-```
+Códigos Usados na Disciplina SDU601 - Sistemas Distribuídos e Ubíquos
+UTFPR - Francisco Beltrão
+Curso de Sistemas de Informação
