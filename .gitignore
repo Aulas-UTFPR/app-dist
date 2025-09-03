@@ -1,1 +1,3 @@
-./atividades/
+atividades/sockets/client_broadcasting.py
+atividades/sockets/server_broadcasting.py
+atividades/threads/cronometro.py

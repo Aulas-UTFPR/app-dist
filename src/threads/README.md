@@ -11,7 +11,7 @@ Duas threads:
 
 ```bash
 source .venv/bin/activate
-python3 src/threads/duas_thread.py
+python3 src/threads/thread_duas.py
 ```
 
 Concorrência:
