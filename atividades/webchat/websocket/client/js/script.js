@@ -55,12 +55,6 @@ function connect() {
 
       if (msg.type === "presence") {
         if (msg.event === "join") {
-          if (!myId) {
-            // primeira mensagem de presença provavelmente não é a nossa;
-            // o servidor não manda um "welcome", então descobrimos meu id
-            // quando recebermos a primeira eco de chat; mas avisos de join
-            // dos outros ajudam a UX.
-          }
           addMessage({
             text: `entrou no chat`,
             sender: msg.sender,
@@ -81,7 +75,6 @@ function connect() {
       }
 
       if (msg.type === "chat") {
-        // Descobre meu id/cor no primeiro eco
         if (!myId && msg.text && inputEl.dataset.last === msg.text) {
           myId = msg.sender;
           myColor = msg.color;
@@ -100,7 +93,6 @@ function connect() {
 
   socket.onclose = (e) => {
     setStatus(`desconectado (code=${e.code}) — reconectando em 1.5s…`);
-    // reconexão simples; veja “heartbeats” e “reconnections” na doc para estratégias mais robustas
     setTimeout(connect, 1500);
   };
 }

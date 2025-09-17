@@ -1,9 +1,8 @@
-# server.py
 import asyncio
 import json
 import logging
 import secrets
-import websockets  # biblioteca de WebSocket para Python (servidor puro, sem FastAPI)
+import websockets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -11,9 +10,9 @@ PORT = 7071
 CLIENTS = {}  # websocket -> {"id": str, "color": int}
 
 def uuid4_like() -> str:
-    # ID simples estilo UUID v4 (suficiente para demos)
     alphabet = "0123456789abcdef"
-    def rnd(n): return "".join(secrets.choice(alphabet) for _ in range(n))
+    def rnd(n): 
+        return "".join(secrets.choice(alphabet) for _ in range(n))
     return f"{rnd(8)}-{rnd(4)}-4{rnd(3)}-a{rnd(3)}-{rnd(12)}"
 
 async def broadcast(payload: dict):
@@ -23,22 +22,18 @@ async def broadcast(payload: dict):
     await asyncio.gather(*(ws.send(message) for ws in CLIENTS.keys()), return_exceptions=True)
 
 async def handler(ws):
-    # Novo cliente conectado
     client_id = uuid4_like()
     color = secrets.randbelow(361)  # 0..360 (matiz)
     CLIENTS[ws] = {"id": client_id, "color": color}
     logging.info("Client connected: %s color=%s", client_id, color)
 
-    # Notifica entrada
     await broadcast({"type": "presence", "event": "join", "sender": client_id, "color": color})
 
     try:
         async for raw in ws:
-            # Recebe texto (ou binário). A API do browser envia texto por padrão.
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
-                # Se não for JSON, embrulha como texto
                 msg = {"type": "chat", "text": str(raw)}
 
             meta = CLIENTS.get(ws, {})
