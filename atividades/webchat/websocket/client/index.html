@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Chat via WebSocket</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="./css/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>Chat WebSocket</h1>
+        <div id="status" class="status">conectando…</div>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite"></section>
+
+      <form id="form" class="composer">
+        <input id="input" type="text" placeholder="Digite sua mensagem…" autocomplete="off" required />
+        <button type="submit">Enviar</button>
+      </form>
+    </main>
+
+    <script type="module" src="./js/script.js"></script>
+  </body>
+</html>

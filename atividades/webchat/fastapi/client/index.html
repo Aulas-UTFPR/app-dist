@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebChat Cliente</title>
+<body>
+  <h1>Cliente WebChat</h1>
+
+  <input id="token" placeholder="Cole seu JWT aqui" size="80">
+  <button id="connect">Conectar</button>
+  <hr>
+
+  <input id="msg" placeholder="Mensagem..." size="60">
+  <input id="to" placeholder="Para (opcional)">
+  <button id="send">Enviar</button>
+  <hr>
+
+  <h3>Online</h3>
+  <pre id="presence"></pre>
+
+  <h3>Digitando</h3>
+  <pre id="typing"></pre>
+
+  <h3>Mensagens</h3>
+  <pre id="log"></pre>
+
+<script>
+let ws;
+
+function log(msg) {
+  document.getElementById('log').textContent += JSON.stringify(msg) + "\n";
+}
+function setPresence(list) {
+  document.getElementById('presence').textContent = JSON.stringify(list, null, 2);
+}
+function setTyping(list) {
+  document.getElementById('typing').textContent = JSON.stringify(list, null, 2);
+}
+
+document.getElementById('connect').onclick = () => {
+  const token = document.getElementById('token').value.trim();
+  ws = new WebSocket(`ws://127.0.0.1:8000/ws?token=${encodeURIComponent(token)}`);
+
+  ws.onopen = () => {
+    log("Conectado.");
+    ws.send(JSON.stringify({ type: "who" }));
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === "presence") return setPresence(msg.online);
+    if (msg.type === "typing") return setTyping(msg.users);
+    log(msg);
+  };
+};
+
+document.getElementById('send').onclick = () => {
+  const text = document.getElementById('msg').value;
+  const to = document.getElementById('to').value.trim();
+  const payload = to ? { type:"message", text, to } : { type:"message", text };
+  ws.send(JSON.stringify(payload));
+};
+</script>
+</body>

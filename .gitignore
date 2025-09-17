@@ -1,3 +1,7 @@
 atividades/sockets/client_broadcasting.py
 atividades/sockets/server_broadcasting.py
 atividades/threads/cronometro.py
+.DS_Store
+atividades/.DS_Store
+atividades/webchat/.DS_Store
+atividades/webchat/fastapi/.dockerignore
