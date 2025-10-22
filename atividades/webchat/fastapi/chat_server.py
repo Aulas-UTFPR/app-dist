@@ -123,12 +123,6 @@ def list_online(_: str = Depends(current_username)):
 def healthz():
     return {"status": "ok", "time": _iso()}
 
-# =========================
-# Camada WebSocket (chat, presença, digitação)
-# FastAPI não tem suporte nativo a sessões ou usuários em WebSocket, 
-# mas tem um modulo WebSocket simples implementado sobre ASGI.
-# https://www.starlette.io/
-# =========================
 class ConnectionManager:
     def __init__(self):
         self.active: Dict[str, WebSocket] = {}  # username -> ws

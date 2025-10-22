@@ -1,61 +1,304 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>WebChat Cliente</title>
-<body>
-  <h1>Cliente WebChat</h1>
+<head>
+  <title>WebChat Cliente</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style> 
+    /* Layout base: gerado com LLM */
+    :root { --bg:#f2f4f7; --card:#fff; --text:#222; --muted:#666; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .container {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .card {
+      background: var(--card); border: 1px solid #e5e7eb; border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
 
-  <input id="token" placeholder="Cole seu JWT aqui" size="80">
-  <button id="connect">Conectar</button>
-  <hr>
+    /* Login */
+    .login-box { max-width: 420px; margin: 60px auto; padding: 20px; }
+    .login-box h2 { margin: 0 0 12px 0; }
+    .login-box .row { display: flex; flex-direction: column; gap: 10px; }
+    .login-box input {
+      padding: 12px; border: 1px solid #d1d5db; border-radius: 10px;
+    }
+    .login-actions { display: flex; gap: 10px; align-items: center; }
+    .btn {
+      border: 0; padding: 10px 16px; border-radius: 10px; cursor: pointer;
+      background: #4a90e2; color: #fff; transition: .2s;
+    }
+    .btn.secondary { background: #6b7280; }
+    .btn:hover { filter: brightness(.95); }
+    .muted { color: var(--muted); font-size: 14px; }
 
-  <input id="msg" placeholder="Mensagem..." size="60">
-  <input id="to" placeholder="Para (opcional)">
-  <button id="send">Enviar</button>
-  <hr>
+    /* Área das abas */
+    .tabs { display: flex; gap: 6px; align-items: flex-end; }
+    .tab {
+      position: relative;
+      padding: 6px 28px 6px 12px; /* espaço à direita p/ botão fechar */
+      border: 1px solid #ddd;
+      border-bottom: 1px solid #e5e7eb;
+      border-radius: 6px 6px 0 0;
+      background: #f3f4f6;
+      cursor: pointer;
+      font-size: 14px;
+      user-select: none;
+    }
+    .tab.active {
+      background: #fff;
+      border-bottom: 1px solid #fff; /* integra com o conteúdo */
+    }
 
-  <h3>Online</h3>
-  <pre id="presence"></pre>
+    /* Botão fechar (×) */
+    .tab .tab-close {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px; height: 18px; line-height: 18px;
+      border-radius: 50%;
+      text-align: center;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: .7;
+    }
+    .tab .tab-close:hover { opacity: 1; background: #e5e7eb; }
 
-  <h3>Digitando</h3>
-  <pre id="typing"></pre>
+    /* A aba Broadcast nunca tem botão fechar */
+    .tab[data-target="broadcast"] .tab-close { display: none; }
 
-  <h3>Mensagens</h3>
-  <pre id="log"></pre>
 
-<script>
-let ws;
+    .chat-boxes {
+      flex: 1;
+      position: relative;
+    }
 
-function log(msg) {
-  document.getElementById('log').textContent += JSON.stringify(msg) + "\n";
-}
-function setPresence(list) {
-  document.getElementById('presence').textContent = JSON.stringify(list, null, 2);
-}
-function setTyping(list) {
-  document.getElementById('typing').textContent = JSON.stringify(list, null, 2);
-}
+    .tab-content {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      padding: 16px;
+      overflow-y: auto;
+      background: #fafafa;
+      gap: 10px;
+      height: 100%;
+    }
+    
+    .tab-content.active {
+      display: flex;
+    }
 
-document.getElementById('connect').onclick = () => {
-  const token = document.getElementById('token').value.trim();
-  ws = new WebSocket(`ws://127.0.0.1:8000/ws?token=${encodeURIComponent(token)}`);
 
-  ws.onopen = () => {
-    log("Conectado.");
-    ws.send(JSON.stringify({ type: "who" }));
-  };
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === "presence") return setPresence(msg.online);
-    if (msg.type === "typing") return setTyping(msg.users);
-    log(msg);
-  };
-};
+    /* ===== Mensagens (bubbles) ===== */
+    .chat-box {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      background: #fafafa;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-document.getElementById('send').onclick = () => {
-  const text = document.getElementById('msg').value;
-  const to = document.getElementById('to').value.trim();
-  const payload = to ? { type:"message", text, to } : { type:"message", text };
-  ws.send(JSON.stringify(payload));
-};
-</script>
+    /* Contêiner de cada mensagem */
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 70%;
+    }
+
+    /* Quem enviou (nome + hora) */
+    .msg .meta {
+      font-size: 12px;
+      color: #666;
+      margin: 0 6px 4px 6px;
+    }
+
+    /* Balão em si */
+    .msg .bubble {
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.35;
+      word-wrap: break-word;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    /* Mensagens dos outros: esquerda */
+    .msg.other {
+      align-self: flex-start;
+    }
+    .msg.other .bubble {
+      background: #ffffff;
+      border: 1px solid #e6e6e6;
+    }
+
+    /* Suas mensagens: direita */
+    .msg.me {
+      align-self: flex-end;
+      text-align: right;
+    }
+    .msg.me .bubble {
+      background: #4a90e2;
+      color: #fff;
+    }
+
+    /* Lista de usuários à esquerda (garantia de layout) */
+    .chat-wrapper {
+      display: flex;
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      min-height: 520px;
+    }
+
+    #users { list-style: none; margin: 0; padding: 0; }
+    #users .user { display:flex; align-items:center; gap:.5rem; padding:.25rem .5rem; }
+    #users .user.online { opacity:1; cursor:pointer; }
+    #users .user.offline { opacity:.6; }
+    #users .user:hover { background: rgba(0,0,0,.05); border-radius:.375rem; }
+    #users .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    #users .user.online .dot { background:#0a0; }   /* verde */
+    #users .user.offline .dot { background:#aaa; }  /* cinza */
+
+    .users-list {
+      width: 28%;
+      min-width: 220px;
+      background: #f9f9f9;
+      border-right: 1px solid #ddd;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .users-list h3 { margin: 0; font-size: 16px; }
+    .users-list .presence,
+    .users-list .typing {
+      font-size: 13px; color: #555;
+    }
+    .users-list ul {
+      list-style: none; padding: 0; margin: 8px 0 0 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    
+    .users-list li {
+      position: relative;
+      padding-left: 20px; /* espaço para a bolinha */
+    }
+
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Header do chat */
+    .chat-header {
+      padding: 10px 14px; border-bottom: 1px solid #e5e7eb;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    /* Input e botão */
+    .chat-input {
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      border-top: 1px solid #ddd;
+      background: #f9f9f9;
+    }
+    .chat-input input, .chat-input select {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      min-width: 0;
+    }
+    .chat-input button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      background: #4a90e2;
+      color: #fff;
+      cursor: pointer;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+    .chat-input button:hover { background: #357ABD; }
+
+    /* Área de log (debug) */
+    pre#log {
+      margin: 0; padding: 10px 12px; white-space: pre-wrap; max-height: 180px; overflow: auto;
+      border: 1px dashed #ddd; border-radius: 10px; background: #fff; font-size: 12px;
+    }
+
+    /* Esconde/Mostra */
+    #chatContainer { display: none; }
+  </style>
+  <script src="js/jquery.js"></script>
+</head>
+<body> <!-- Gerado com LLM -->
+  <body>
+  <div class="container">
+
+    <div id="loginContainer" class="card login-box">
+      <h2>Login</h2>
+      <div class="row">
+        <input type="text" id="username" placeholder="Usuário" autocomplete="username" />
+        <input type="password" id="password" placeholder="Senha" autocomplete="current-password" />
+        <div class="login-actions">
+          <button id="loginBtn" class="btn">Entrar</button>
+          <span id="message" class="muted"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="chatContainer" class="card" aria-hidden="true">
+      <div class="chat-wrapper">
+        <aside class="users-list">
+          <h3>Usuários</h3>
+          <div id="presence" class="presence"></div>
+          <div id="typing" class="typing"></div>
+          <ul id="users"></ul>
+        </aside>
+
+        <section class="chat-area">
+          <div class="chat-header">
+            <div class="tabs" id="chatTabs">
+              <button class="tab active" data-target="broadcast">
+                Broadcast
+                <span class="tab-close" title="Fechar">×</span>
+              </button>
+              <!-- abas dinâmicas entram aqui -->
+            </div>
+            <button id="logoutBtn" class="btn secondary">Sair</button>
+          </div>
+
+          <div class="chat-boxes" id="chatBoxes">
+            <div class="chat-box tab-content active" id="tab-broadcast"></div>
+            <!-- conteúdos dinâmicos de DM entram aqui -->
+          </div>
+
+          <div class="chat-input">
+            <input id="msg" type="text" placeholder="Digite sua mensagem" />
+            <input id="messageInput" type="hidden" />
+            <button id="clearBtn">Limpar</button>
+            <button id="sendBtn">Enviar</button>
+          </div>
+        </section>
+      </div>
+
+      <details open class="card" style="padding:12px; margin:12px;">
+        <summary>Log (debug)</summary>
+        <pre id="log"></pre>
+      </details>
+    </div>
+  </div>
 </body>
