@@ -32,9 +32,11 @@ WORKDIR /app
 # Copia wheels e instala, depois remove cache
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*
+RUN pip install pika
 
 # Copia a aplicação
 COPY chat_server.py /app/chat_server.py
+COPY rabbit_pika.py /app/rabbit_pika.py
 
 # Exponha a porta do serviço
 EXPOSE 8000

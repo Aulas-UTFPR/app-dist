@@ -1,17 +1,25 @@
 # chat_server.py
 from __future__ import annotations
+import contextlib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Set, List
-import os, json
+import os, json, asyncio
 
-import jwt  # pip install pyjwt
-from passlib.context import CryptContext  # pip install passlib[bcrypt]
-from fastapi import (
-    FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
-)
+from fastapi.concurrency import asynccontextmanager
+
+import jwt
+from passlib.context import CryptContext
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# NEW: import the pika client from separate file
+from rabbit_pika import PikaClient
+
+import asyncio
+
+MAIN_LOOP: asyncio.AbstractEventLoop | None = None
 
 # =========================
 # Configuração
@@ -22,6 +30,10 @@ ACCESS_TTL_MIN = int(os.getenv("ACCESS_TTL_MIN", "60"))
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+# RabbitMQ
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@172.17.0.3:5672/")
+AMQP_EXCHANGE = os.getenv("AMQP_EXCHANGE", "chat.topic")
 
 # Usuários pré-definidos (apenas estes podem usar o chat)
 _raw_users = {
@@ -86,9 +98,49 @@ def current_username(token: str = Depends(oauth2_scheme)) -> str:
     return username
 
 # =========================
+# RabbitMQ Client - Connection/Lifecycle
+# =========================
+pika_client: PikaClient | None = None
+
+def _on_user_msg(username: str, body: bytes) -> bool:
+    try:
+        msg = json.loads(body.decode("utf-8"))
+    except Exception:
+        msg = {"type": "system", "text": body.decode("utf-8", "ignore")}
+
+    if MAIN_LOOP is None:
+        return False
+
+    fut = asyncio.run_coroutine_threadsafe(manager.send_to(username, msg), MAIN_LOOP)
+    try:
+        ok = fut.result(timeout=2.0)   # manager.send_to returns True/False
+        return bool(ok)
+    except Exception:
+        return False
+    
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global pika_client, MAIN_LOOP
+    MAIN_LOOP = asyncio.get_running_loop()  # <-- store the running loop
+    pika_client = PikaClient(RABBITMQ_URL, AMQP_EXCHANGE, _on_user_msg)
+    pika_client.start()
+    for u in USERS.keys():
+        pika_client.ensure_user_queue(u)
+    try:
+        yield
+    finally:
+        if pika_client:
+            pika_client.stop()
+# =========================
+
+# =========================
 # App & CORS
 # =========================
-app = FastAPI(title="Chat em FastAPI + JWT (HTTP + WebSocket)")
+app = FastAPI(
+    title="Chat em FastAPI + JWT (HTTP + WS) + RabbitMQ (pika)",
+    lifespan=lifespan
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],   # restrinja em produção
@@ -96,6 +148,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# =========================
 
 # =========================
 # Camada API (auth, perfil, listagem)
@@ -122,7 +175,12 @@ def list_online(_: str = Depends(current_username)):
 @app.get("/healthz")
 def healthz():
     return {"status": "ok", "time": _iso()}
+# =========================
 
+
+# =========================
+# Helper - Gerenciamento de Conexões WebSocket
+# =========================
 class ConnectionManager:
     def __init__(self):
         self.active: Dict[str, WebSocket] = {}  # username -> ws
@@ -177,10 +235,13 @@ class ConnectionManager:
         }
 
 manager = ConnectionManager()
+# =========================
 
+# =========================
+# WebSocket Endpoint
+# =========================
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket, token: Optional[str] = Query(default=None)):
-    # Aceita para poder fechar com códigos customizados
     await websocket.accept()
     if not token:
         await websocket.close(code=4401)  # Unauthorized
@@ -203,19 +264,17 @@ async def ws_endpoint(websocket: WebSocket, token: Optional[str] = Query(default
     await manager.broadcast(manager.roster_payload())
     await manager.broadcast(manager.typing_payload())  # mantém cliente em sincronia
 
+    # Configura fila/consumer RabbitMQ para este usuário
+    if pika_client:
+        pika_client.ensure_user_queue(username, ttl_ms=None)
+        pika_client.start_user_consumer(username)
+
     try:
         while True:
             raw = await websocket.receive_text()
-            # Protocolo simples baseado em "type"
-            # - {"type":"who"}                    -> devolve presença atual
-            # - {"type":"typing","state":"start"} -> usuário começou a digitar
-            # - {"type":"typing","state":"stop"}  -> usuário parou de digitar
-            # - {"type":"message","text":"..."}   -> broadcast
-            # - {"type":"message","text":"...","to":"bob"} -> DM para bob
             try:
                 obj = json.loads(raw)
             except Exception:
-                # Texto puro -> trata como mensagem broadcast
                 obj = {"type": "message", "text": raw}
 
             kind = obj.get("type")
@@ -239,30 +298,45 @@ async def ws_endpoint(websocket: WebSocket, token: Optional[str] = Query(default
                 if not text:
                     continue
                 to_user = obj.get("to")
-                payload = {
+                payload_msg = {
                     "type": "message",
                     "sender": username,
                     "text": text,
                     "to": to_user,
                     "sent_at": _iso(),
                 }
+                # =========================
+                # RabbitMQ Client - Envio de Mensagem
+                # =========================
                 if to_user:
-                    ok = await manager.send_to(to_user, payload)
-                    # confirma ao remetente (e informa offline)
-                    ack = {"type": "delivery", "to": to_user, "status": "delivered" if ok else "offline", "timestamp": _iso()}
-                    await manager.send_to(username, ack)
-                else:
-                    await manager.broadcast(payload)
+                    if pika_client:
+                        pika_client.ensure_user_queue(to_user)
+                        pika_client.publish(f"user.{to_user}", payload_msg)
+                    await manager.send_to(username, {
+                        "type": "delivery", "to": to_user, "status": "queued", "timestamp": _iso()
+                    })
+                else: # broadcast
+                    if pika_client:
+                        for u in USERS.keys():
+                            pika_client.ensure_user_queue(u)
+                            pika_client.publish(f"user.{u}", payload_msg)
                 continue
+                # =========================
 
             # Mensagens desconhecidas: ignore ou logue
             await manager.send_to(username, {"type": "error", "message": "invalid_payload", "timestamp": _iso()})
 
     except WebSocketDisconnect:
         manager.disconnect(username)
+        if pika_client:
+            pika_client.stop_user_consumer(username)
         await manager.broadcast({"type": "system", "text": f"{username} saiu do chat.", "timestamp": _iso()})
         await manager.broadcast(manager.roster_payload())
         await manager.broadcast(manager.typing_payload())
     except Exception:
         manager.disconnect(username)
-        await websocket.close(code=1011)
+        if pika_client:
+            pika_client.stop_user_consumer(username)
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1011)
+# =========================

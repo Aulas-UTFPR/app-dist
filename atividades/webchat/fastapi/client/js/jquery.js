@@ -40,9 +40,12 @@ $(document).ready(function () {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
             log("WebSocket não conectado.");
             return;
+        } else {
+            log("Enviando mensagem: " + JSON.stringify(payload));
         }
 
-        ws.send(JSON.stringify(payload));
+        ws.send(JSON.stringify(payload))
+        
         $("#msg").val("");
 
         if (activeTab !== "broadcast") {
@@ -53,7 +56,6 @@ $(document).ready(function () {
             });
         }
         });
-
 
     $("#clearBtn").on("click", function () {
         $(".chat-box.tab-content.active").empty();
@@ -213,7 +215,6 @@ async function refreshUsers() {
   renderUsers(users);
 }
 
-
 function renderUsers(users) {
   const usersUl = document.getElementById("users");
   usersUl.innerHTML = "";
@@ -222,12 +223,13 @@ function renderUsers(users) {
     const li = document.createElement("li");
     li.className = `user ${u.online ? "online" : "offline"}`;
     li.innerHTML = `<span class="dot"></span> ${u.username}`;
+    li.addEventListener("click", () => ensureTab(u.username));
 
-    if (u.online) {
-      li.addEventListener("click", () => ensureTab(u.username));
-    } else {
-      li.style.cursor = "default";
-    }
+    // if (u.online) {
+    //   li.addEventListener("click", () => ensureTab(u.username));
+    // } else {
+    //   li.style.cursor = "default";
+    // }
     usersUl.appendChild(li);
   });
 }
@@ -274,7 +276,6 @@ function reopenTab(target) {
 
   switchTab(target);
 }
-
 
 function switchTab(target) {
   document.querySelectorAll(".tab-content").forEach(c => {
